@@ -1,13 +1,10 @@
-# mqtt_to_sqlite.py
 import json, time, sqlite3, os
 from paho.mqtt import client as mqtt
 
-# === CONFIG ===
-MQTT_HOST = "broker.emqx.io"   # use o MESMO broker do simulador
+MQTT_HOST = "broker.emqx.io"   
 MQTT_PORT = 1883
 TOPIC_SUB = "mottu/scan/#"
 DB_PATH   = "mottu.db"
-# ==============
 
 def get_conn():
     first = not os.path.exists(DB_PATH)

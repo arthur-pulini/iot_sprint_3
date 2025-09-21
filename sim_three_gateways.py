@@ -1,42 +1,33 @@
-# sim_three_gateways.py
-# Simula 3 gateways (sensores) publicando leituras no MQTT em paralelo.
-# Tópico: mottu/scan/<gateway_id>
-# Formato do payload compatível com o backend proposto.
+
 
 import json, time, math, random, threading
 from typing import Dict, Tuple, List
 from paho.mqtt import client as mqtt
 
-# ===================== CONFIG =====================
 MQTT_HOST = "broker.emqx.io"
 MQTT_PORT = 1883
 
-# Coordenadas (em metros) dos 3 sensores no pátio (ajuste conforme sua planta)
 GATEWAYS = [
     {"id": "gw_A", "x": 0.0,  "y": 0.0},
     {"id": "gw_B", "x": 20.0, "y": 0.0},
     {"id": "gw_C", "x": 10.0, "y": 15.0},
 ]
 
-# Posições iniciais das motos (em metros)
 MOTOS: Dict[str, Tuple[float, float]] = {
     "MOTTU_123": (10.0, 10.0),
     "MOTTU_456": (16.0, 4.0),
 }
 
-# Opções de cenário
-ENABLE_MOVEMENT = True          # Faz as motos “passearem” levemente
-DISAPPEAR_AFTER_S = 0           # Ex.: 30 -> após 30s, a MOTTU_456 some (não será publicada)
-RANDOM_SEED = 42                # Para reprodutibilidade do ruído
+ENABLE_MOVEMENT = True          
+DISAPPEAR_AFTER_S = 0           
+RANDOM_SEED = 42                
 
-# Parâmetros de RSSI
-RSSI_AT_1M = -50.0              # RSSI esperado a 1m (calibrável)
-PATH_LOSS_N = 2.2               # Expoente de perda (calibrável)
-RSSI_NOISE_STD = 2.0            # ruído gaussiano [dB]
+RSSI_AT_1M = -50.0              
+PATH_LOSS_N = 2.2               
+RSSI_NOISE_STD = 2.0            
 
-PUBLISH_EVERY_S = 1.0           # frequência de publicação
+PUBLISH_EVERY_S = 1.0           
 
-# ==================================================
 
 random.seed(RANDOM_SEED)
 
@@ -58,23 +49,19 @@ def movement_thread(motos: Dict[str, Tuple[float, float]], bounds=(0, 20, 0, 15)
         time.sleep(1.0)
         t = time.time() - start
 
-        # ‘Desaparecer’ MOTTU_456 após N segundos, se configurado
         if DISAPPEAR_AFTER_S and t > DISAPPEAR_AFTER_S and "MOTTU_456" in motos:
-            # Use None para indicar “fora do ar” (gateways irão pular)
-            motos["MOTTU_456"] = None  # type: ignore
+            motos["MOTTU_456"] = None  
 
         if not ENABLE_MOVEMENT:
             continue
 
         for moto, pos in list(motos.items()):
-            if pos is None:  # desaparecida
+            if pos is None:  
                 continue
             x, y = pos
-            # Drift pequeno (random walk)
             x += vx[moto] + random.uniform(-0.1, 0.1)
             y += vy[moto] + random.uniform(-0.1, 0.1)
 
-            # Rebater nas bordas
             if x < minx or x > maxx:
                 vx[moto] *= -1
                 x = max(minx, min(x, maxx))
@@ -95,7 +82,6 @@ def gateway_publisher(gw_id: str, gx: float, gy: float, motos_ref: Dict[str, Tup
         readings: List[dict] = []
         for moto, pos in list(motos_ref.items()):
             if pos is None:
-                # Moto “desaparecida”: não publica
                 continue
             x, y = pos
             d = dist(gx, gy, x, y)
@@ -121,14 +107,11 @@ def gateway_publisher(gw_id: str, gx: float, gy: float, motos_ref: Dict[str, Tup
         time.sleep(PUBLISH_EVERY_S)
 
 def main():
-    # cópia mutável das posições
     motos = dict(MOTOS)
 
-    # thread opcional de movimento/desaparecimento
     t_move = threading.Thread(target=movement_thread, args=(motos,), daemon=True)
     t_move.start()
 
-    # 3 threads de gateways
     threads = []
     for gw in GATEWAYS:
         t = threading.Thread(
@@ -139,7 +122,6 @@ def main():
         t.start()
         threads.append(t)
 
-    # Segura a main
     try:
         while True:
             time.sleep(1)
